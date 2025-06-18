@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AirDownloader</title>
+    <title>AirDownloader - Search & Download</title>
     <!-- Tailwind CSS CDN for easy styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -61,6 +61,7 @@
             border: 1px solid #e2e8f0; /* Light border around each link item */
             border-radius: 8px;
             background-color: #f8fafc; /* Slightly off-white background */
+            text-align: left; /* Align text left within item */
         }
         .link-info {
             font-weight: 600;
@@ -101,6 +102,46 @@
             background-color: #2563eb;
             transform: translateY(-2px);
         }
+
+        .search-result-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            gap: 15px;
+        }
+        .search-result-item:hover {
+            background-color: #edf2f7;
+        }
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        .search-result-item img {
+            width: 90px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .search-result-item .title {
+            flex-grow: 1;
+            font-weight: 600;
+            color: #2d3748;
+        }
+        .search-result-item .get-links-btn {
+            background-color: #6366f1; /* Indigo */
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: background-color 0.2s ease;
+            white-space: nowrap; /* Prevent button text from wrapping */
+        }
+        .search-result-item .get-links-btn:hover {
+            background-color: #4f46e5;
+        }
     </style>
 </head>
 <body class="selection:bg-teal-500 selection:text-white">
@@ -109,80 +150,223 @@
             <span class="text-teal-600">Air</span>Downloader
         </h1>
         <p class="text-gray-600 mb-8 text-lg">
-            Paste a link from YouTube, Instagram, TikTok, etc., to get direct download or stream links.
+            Search for YouTube videos or paste a direct URL to get download/stream links.
         </p>
 
+        <!-- Search Input Section -->
         <div class="form-group flex flex-col sm:flex-row gap-4 mb-6">
             <input
                 type="text"
-                id="urlInput"
-                placeholder="Enter video/audio URL here..."
-                class="flex-grow p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-800 text-base"
-                aria-label="Enter video or audio URL"
+                id="searchInput"
+                placeholder="Search for a YouTube video..."
+                class="flex-grow p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-gray-800 text-base"
+                aria-label="Search for YouTube video"
             >
             <button
-                id="fetchButton"
-                class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 text-base w-full sm:w-auto"
+                id="searchButton"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-75 text-base w-full sm:w-auto"
             >
-                Get Links
+                Search
             </button>
         </div>
 
         <div id="loadingIndicator" class="loading-spinner mb-6"></div>
 
+        <!-- Search Results Section -->
+        <div id="searchResults" class="text-left bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6 hidden">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">Search Results</h2>
+            <div id="searchResultsContainer" class="divide-y divide-gray-200">
+                <!-- Search results will be inserted here -->
+            </div>
+            <p id="searchErrorMessage" class="text-red-500 text-center mt-4 hidden">
+                <!-- Search error messages will be displayed here -->
+            </p>
+        </div>
+
+        <!-- Direct URL Input Section (Kept for flexibility) -->
+        <div class="form-group flex flex-col sm:flex-row gap-4 mb-6 mt-8">
+            <input
+                type="text"
+                id="urlInput"
+                placeholder="Or paste direct video/audio URL..."
+                class="flex-grow p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-800 text-base"
+                aria-label="Enter direct video or audio URL"
+            >
+            <button
+                id="fetchButton"
+                class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 text-base w-full sm:w-auto"
+            >
+                Get Direct Links
+            </button>
+        </div>
+
+        <!-- Download/Stream Links Section -->
         <div id="results" class="text-left bg-gray-50 p-6 rounded-lg border border-gray-200 mt-6 hidden">
-            <h2 class="text-2xl font-bold text-gray-700 mb-4">Download Links</h2>
+            <h2 class="text-2xl font-bold text-gray-700 mb-4">Download/Stream Links</h2>
             <div id="linksContainer" class="space-y-3">
-                <!-- Links will be inserted here -->
+                <!-- Download/Stream links will be inserted here -->
             </div>
             <p id="errorMessage" class="text-red-500 text-center mt-4 hidden">
-                <!-- Error messages will be displayed here -->
+                <!-- Error messages for direct link fetching will be displayed here -->
             </p>
         </div>
     </div>
 
     <script>
+        // DOM Elements for Direct URL Functionality
         const urlInput = document.getElementById('urlInput');
         const fetchButton = document.getElementById('fetchButton');
-        const loadingIndicator = document.getElementById('loadingIndicator');
         const resultsDiv = document.getElementById('results');
         const linksContainer = document.getElementById('linksContainer');
-        const errorMessage = document.getElementById('errorMessage');
+        const errorMessage = document.getElementById('errorMessage'); // For direct URL fetch errors
 
-        // URL of your existing MegaFetch proxy worker
+        // DOM Elements for Search Functionality
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const searchResultsDiv = document.getElementById('searchResults');
+        const searchResultsContainer = document.getElementById('searchResultsContainer');
+        const searchErrorMessage = document.getElementById('searchErrorMessage'); // For search errors
+
+        // Common DOM Element
+        const loadingIndicator = document.getElementById('loadingIndicator');
+
+        // --- Configuration ---
+        // URL of your existing MegaFetch proxy worker (for download links)
         const MEGAFETCH_PROXY_WORKER_URL = "https://dl.worksbeyondworks.workers.dev/";
+        // IMPORTANT: This has been updated to your deployed Python YouTube Search Backend URL!
+        const YOUTUBE_SEARCH_BACKEND_URL = "https://unusual-jeniffer-airsebook-c4f6add4.koyeb.app/";
 
-        fetchButton.addEventListener('click', fetchLinks);
+
+        // --- Event Listeners ---
+        fetchButton.addEventListener('click', () => fetchLinks(urlInput.value.trim()));
         urlInput.addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
-                fetchLinks();
+                fetchLinks(urlInput.value.trim());
             }
         });
 
-        async function fetchLinks() {
-            const url = urlInput.value.trim();
+        searchButton.addEventListener('click', searchVideos);
+        searchInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                searchVideos();
+            }
+        });
 
-            // Clear previous results and errors
+        // --- Helper Functions ---
+
+        // Displays messages (errors or info) in the relevant error div
+        function displayMessage(message, type = 'info', targetErrorDiv = errorMessage) {
+            targetErrorDiv.textContent = message;
+            targetErrorDiv.classList.remove('hidden');
+            if (type === 'error') {
+                targetErrorDiv.classList.add('text-red-500');
+                targetErrorDiv.classList.remove('text-blue-500');
+            } else {
+                targetErrorDiv.classList.add('text-blue-500');
+                targetErrorDiv.classList.remove('text-red-500');
+            }
+            // Ensure the parent results div is visible if we're showing a message there
+            if (targetErrorDiv === errorMessage) {
+                resultsDiv.classList.remove('hidden');
+                linksContainer.innerHTML = ''; // Clear any previous links
+            } else if (targetErrorDiv === searchErrorMessage) {
+                searchResultsDiv.classList.remove('hidden');
+                searchResultsContainer.innerHTML = ''; // Clear any previous search results
+            }
+        }
+
+        function clearAllResults() {
             linksContainer.innerHTML = '';
             errorMessage.textContent = '';
             errorMessage.classList.add('hidden');
             resultsDiv.classList.add('hidden');
 
-            if (!url) {
-                displayMessage("Please enter a URL.", 'error');
+            searchResultsContainer.innerHTML = '';
+            searchErrorMessage.textContent = '';
+            searchErrorMessage.classList.add('hidden');
+            searchResultsDiv.classList.add('hidden');
+        }
+
+        // --- Search Logic ---
+        async function searchVideos() {
+            const query = searchInput.value.trim();
+
+            clearAllResults(); // Clear previous results from both sections
+
+            if (!query) {
+                displayMessage("Please enter a search query.", 'error', searchErrorMessage);
                 return;
             }
 
-            // Basic URL validation
+            loadingIndicator.style.display = 'block'; // Show spinner
+            searchButton.disabled = true; // Disable button during search
+            fetchButton.disabled = true; // Also disable direct fetch button
+
             try {
-                new URL(url);
-            } catch (e) {
-                displayMessage("Please enter a valid URL.", 'error');
+                // The URL is now directly from your deployed Koyeb backend
+                const searchApiUrl = `${YOUTUBE_SEARCH_BACKEND_URL}search?query=${encodeURIComponent(query)}`;
+                console.log(`Calling search backend: ${searchApiUrl}`);
+
+                const searchResponse = await fetch(searchApiUrl);
+                const searchData = await searchResponse.json();
+
+                console.log("Search Backend Raw Data:", searchData);
+
+                if (!searchResponse.ok) {
+                    throw new Error(`Search API error: ${searchResponse.status} - ${searchData.error || searchResponse.statusText}`);
+                }
+
+                if (searchData.results && searchData.results.length > 0) {
+                    searchResultsContainer.innerHTML = ''; // Clear previous results
+                    searchData.results.forEach(video => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'search-result-item';
+                        itemDiv.innerHTML = `
+                            <img src="${video.thumbnail}" alt="${video.title}" onerror="this.onerror=null;this.src='https://placehold.co/90x60/cccccc/333333?text=No+Thumb';" />
+                            <span class="title">${video.title}</span>
+                            <button class="get-links-btn" data-url="${video.url}">Get Download Links</button>
+                        `;
+                        searchResultsContainer.appendChild(itemDiv);
+                    });
+
+                    // Add event listeners to the "Get Download Links" buttons
+                    searchResultsContainer.querySelectorAll('.get-links-btn').forEach(button => {
+                        button.addEventListener('click', (event) => {
+                            const videoUrl = event.target.dataset.url;
+                            urlInput.value = videoUrl; // Pre-fill direct URL input
+                            fetchLinks(videoUrl); // Trigger direct link fetch
+                            searchResultsDiv.classList.add('hidden'); // Hide search results after selection
+                            urlInput.scrollIntoView({ behavior: 'smooth', block: 'center' }); // Scroll to direct input
+                        });
+                    });
+                    searchResultsDiv.classList.remove('hidden'); // Show search results section
+                } else {
+                    displayMessage("No videos found for your search query.", 'info', searchErrorMessage);
+                }
+
+            } catch (error) {
+                console.error("Error during YouTube search:", error);
+                displayMessage(`Search failed: ${error.message}. Please try again.`, 'error', searchErrorMessage);
+            } finally {
+                loadingIndicator.style.display = 'none'; // Hide spinner
+                searchButton.disabled = false; // Re-enable search button
+                fetchButton.disabled = false; // Re-enable direct fetch button
+            }
+        }
+
+
+        // --- Direct Link Fetching Logic (Modified to be called by Search too) ---
+        async function fetchLinks(url) { // Now accepts URL as argument
+            clearAllResults(); // Clear all sections first
+
+            if (!url) {
+                displayMessage("Please enter a URL to get direct links.", 'error', errorMessage);
                 return;
             }
 
             loadingIndicator.style.display = 'block'; // Show spinner
             fetchButton.disabled = true; // Disable button during fetch
+            searchButton.disabled = true; // Disable search button
 
             try {
                 const proxyRequestUrl = `${MEGAFETCH_PROXY_WORKER_URL}?url=${encodeURIComponent(url)}`;
@@ -214,25 +398,37 @@
                         htmlContent += `<img src="${resData.thumbnail}" alt="Thumbnail" class="w-full max-h-48 object-contain rounded-md mb-4 border border-gray-200">`;
                     }
 
-                    const videoFormats = resData.formats.filter(f => f.vcodec !== "none" && f.url);
-                    videoFormats.sort((a, b) => {
+                    // Separate merged (audio+video) and video-only formats
+                    const mergedFormats = resData.formats.filter(f => f.vcodec !== "none" && f.acodec !== "none" && f.url);
+                    const videoOnlyFormats = resData.formats.filter(f => f.vcodec !== "none" && f.acodec === "none" && f.url);
+                    const audioFormats = resData.formats.filter(f => f.acodec !== "none" && f.vcodec === "none" && f.url);
+
+                    // Sort merged formats by quality/filesize
+                    mergedFormats.sort((a, b) => {
                         const qualityA = parseInt(a.quality) || 0;
                         const qualityB = parseInt(b.quality) || 0;
                         if (qualityA !== qualityB) return qualityB - qualityA;
                         return (b.filesize || 0) - (a.filesize || 0);
                     });
 
-                    const audioFormats = resData.formats.filter(f => f.acodec !== "none" && f.vcodec === "none" && f.url);
+                    // Sort video-only formats by quality/filesize
+                    videoOnlyFormats.sort((a, b) => {
+                        const qualityA = parseInt(a.quality) || 0;
+                        const qualityB = parseInt(b.quality) || 0;
+                        if (qualityA !== qualityB) return qualityB - qualityA;
+                        return (b.filesize || 0) - (a.filesize || 0);
+                    });
+
+                    // Sort audio formats by filesize
                     audioFormats.sort((a, b) => (b.filesize || 0) - (a.filesize || 0));
 
-                    if (videoFormats.length > 0) {
-                        htmlContent += `<p class="font-bold text-gray-700 mt-4 mb-2">Video Downloads:</p>`;
-                        videoFormats.slice(0, 10).forEach(format => {
+                    if (mergedFormats.length > 0) {
+                        htmlContent += `<p class="font-bold text-gray-700 mt-4 mb-2">Video (with Audio) Downloads:</p>`;
+                        mergedFormats.slice(0, 10).forEach(format => { // Limit to top 10
                             const quality = format.quality || "Unknown Quality";
                             const ext = format.ext || "mp4";
                             const fileSizeMB = format.filesize ? ` (${(format.filesize / (1024 * 1024)).toFixed(2)} MB)` : '';
                             
-                            // Buttons for Video
                             htmlContent += `
                                 <div class="link-item">
                                     <span class="link-info">${quality} ${ext}${fileSizeMB}</span>
@@ -245,6 +441,27 @@
                         });
                     }
 
+                    if (videoOnlyFormats.length > 0) {
+                        htmlContent += `<p class="font-bold text-gray-700 mt-4 mb-2">Video (No Audio) Downloads:</p>`;
+                        videoOnlyFormats.slice(0, 5).forEach(format => { // Limit to top 5
+                            const quality = format.quality || "Unknown Quality";
+                            const ext = format.ext || "mp4";
+                            const fileSizeMB = format.filesize ? ` (${(format.filesize / (1024 * 1024)).toFixed(2)} MB)` : '';
+                            
+                            htmlContent += `
+                                <div class="link-item">
+                                    <span class="link-info">${quality} ${ext}${fileSizeMB} _(Video Only)_</span>
+                                    <div class="button-group">
+                                        <a href="${format.url}" download="${resData.title || 'video-only'}.${ext}" class="download-btn">Download</a>
+                                        <a href="${format.url}" target="_blank" rel="noopener noreferrer" class="stream-btn">Stream</a>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        htmlContent += `<p class="text-sm text-gray-500 mt-2">For videos with no audio, you'll need to download a separate audio stream and combine them locally.</p>`;
+                    }
+
+
                     if (audioFormats.length > 0) {
                         htmlContent += `<p class="font-bold text-gray-700 mt-4 mb-2">Audio Downloads:</p>`;
                         audioFormats.slice(0, 5).forEach(format => {
@@ -252,7 +469,6 @@
                             const ext = format.ext || "m4a";
                             const fileSizeMB = format.filesize ? ` (${(format.filesize / (1024 * 1024)).toFixed(2)} MB)` : '';
                             
-                            // Buttons for Audio
                             htmlContent += `
                                 <div class="link-item">
                                     <span class="link-info">${quality} ${ext}${fileSizeMB}</span>
@@ -266,7 +482,7 @@
                     }
 
                     if (htmlContent === '') {
-                         displayMessage("No suitable download links found for this URL.", 'error');
+                         displayMessage("No suitable download links found for this URL.", 'error', errorMessage);
                     } else {
                         linksContainer.innerHTML = htmlContent;
                         resultsDiv.classList.remove('hidden');
@@ -287,30 +503,17 @@
                     `;
                     resultsDiv.classList.remove('hidden');
                 } else {
-                    displayMessage("Could not retrieve download information for this URL. It might not be supported or there was an issue.", 'error');
+                    displayMessage("Could not retrieve download information for this URL. It might not be supported or there was an issue.", 'error', errorMessage);
                 }
 
             } catch (error) {
                 console.error("Error fetching or processing links:", error);
-                displayMessage(`An error occurred: ${error.message}. Please try again.`, 'error');
+                displayMessage(`An error occurred: ${error.message}. Please try again.`, 'error', errorMessage);
             } finally {
                 loadingIndicator.style.display = 'none'; // Hide spinner
                 fetchButton.disabled = false; // Re-enable button
+                searchButton.disabled = false; // Re-enable search button
             }
-        }
-
-        function displayMessage(message, type = 'info') {
-            errorMessage.textContent = message;
-            errorMessage.classList.remove('hidden');
-            if (type === 'error') {
-                errorMessage.classList.add('text-red-500');
-                errorMessage.classList.remove('text-blue-500');
-            } else {
-                errorMessage.classList.add('text-blue-500');
-                errorMessage.classList.remove('text-red-500');
-            }
-            resultsDiv.classList.remove('hidden'); // Show the results div to contain the message
-            linksContainer.innerHTML = ''; // Clear any previous links
         }
     </script>
 </body>
